@@ -7,8 +7,8 @@ import numpy as np
 from PIL import Image
 from PyQt5 import QtCore
 from PyQt5.QtCore import Qt, QModelIndex
-from PyQt5.QtGui import QPixmap, QImage
-from PyQt5.QtWidgets import QMainWindow, QApplication, QFileDialog, QMessageBox, QMenuBar, QAction
+from PyQt5.QtGui import QPixmap, QImage, QIcon
+from PyQt5.QtWidgets import QMainWindow, QApplication, QFileDialog, QMessageBox, QHeaderView, QStyledItemDelegate
 
 import design, filters
 
@@ -60,36 +60,60 @@ class TableModel(QtCore.QAbstractTableModel):
         return Qt.ItemIsSelectable | Qt.ItemIsEnabled | Qt.ItemIsEditable
 
 
+class AlignDelegate(QStyledItemDelegate):
+    def initStyleOption(self, option, index):
+        super(AlignDelegate, self).initStyleOption(option, index)
+        option.displayAlignment = QtCore.Qt.AlignCenter
+
+
 class FilterApp(QMainWindow, design.Ui_MainWindow):
-    # TODO: filter_size
+
     def __init__(self):
         super().__init__()
-        self.mode = QImage.Format_RGB888 #if self.channels_number == 3 else QImage.Format_Grayscale8
-        self.channels_number = 3 #if len(self.data.shape) > 2 else 1
+        self.mode = QImage.Format_RGB888
+        self.channels_number = 3
         self.setupUi(self)
         self.filename = None
         self.data = None
+        self.out = None
 
         self.startButton.clicked.connect(self.set_output)
-        self.setStyleSheet("QTableView {background: #f0f0f0;}")
-        data = [
-            [-1, -1, -1],
-            [-1, 9, -1],
-            [-1, -1, -1]
-        ]
+        self.setStyleSheet(
+            " QMenuBar{background: #f5f5f5} ")
+        self.setWindowIcon(QIcon("images/icon.svg"))
+
+        data = filters.h1.tolist()
         self.model = TableModel(data)
         self.table.setModel(self.model)
-        self.comboBox.addItems(["Custom", "H1", "H2", "H3", "median", "H4", "H5", "H6"])
+        self.table.setItemDelegate(AlignDelegate(self.table))
+
+        self.comboBox.addItems(["H1", "H2", "H3", "Медианный", "H4", "H5", "H6", "Свой фильтр"])
         self.comboBox.currentTextChanged.connect(self.on_combobox_changed)
+        self.comboBox.setItemDelegate(AlignDelegate(self.comboBox))
+
         self.openAction.triggered.connect(self.set_input)
         self.exitAction.triggered.connect(exit)
+        self.saveAction.triggered.connect(self.save_file)
 
     def open_file(self):
         file_dialog = QFileDialog()
         file_dialog.setAcceptMode(QFileDialog.AcceptOpen)
         file_dialog.setFileMode(QFileDialog.ExistingFile)
-        filename = file_dialog.getOpenFileName(self, 'Open File', '', "Images (*.png *.bmp *.pcx *.jpg)")
+        filename = file_dialog.getOpenFileName(self, 'Открыть', '', "Images (*.png *.bmp *.pcx *.jpg)")
         self.filename = filename[0]
+
+    def save_file(self):
+        file_dialog = QFileDialog()
+        file_dialog.setFileMode(QFileDialog.AnyFile)
+        filename = file_dialog.getSaveFileName(self, 'Save File', '', "Images (*.png *.bmp *.pcx *.jpg)")
+        if self.out is None or filename[0] == "":
+            return
+        try:
+            im = Image.fromarray(self.out)
+            im.save(filename[0])
+        except Exception:
+            self.show_message("Can't save this file")
+
 
     def set_input(self):
         self.open_file()
@@ -106,7 +130,6 @@ class FilterApp(QMainWindow, design.Ui_MainWindow):
 
             self.set_image(self.data, self.inputLabel)
 
-    # TODO: nulls message
     def set_output(self):
         try:
             kernel = np.array(self.table.model().get_data()).astype("float32")
@@ -120,11 +143,11 @@ class FilterApp(QMainWindow, design.Ui_MainWindow):
         image_filter.image = self.data
         kernel_mode = self.comboBox.currentText()
         if kernel_mode == "median":
-            out = image_filter.filter(kernel=np.ones((3, 3)), function=np.median)
+            self.out = image_filter.filter(kernel=np.ones((3, 3)), function=np.median)
         else:
-            out = image_filter.filter(kernel=kernel)
+            self.out = image_filter.filter(kernel=kernel)
 
-        self.set_image(out, self.outputLabel)
+        self.set_image(self.out, self.outputLabel)
 
     def set_image(self, data, label):
         try:
@@ -141,6 +164,9 @@ class FilterApp(QMainWindow, design.Ui_MainWindow):
     def show_message(self, message, title="Error!"):
         dlg = QMessageBox(self)
         dlg.setWindowTitle(title)
+        if title == "Error!":
+            dlg.setIconPixmap(QPixmap("images/error.svg"))
+            dlg.setWindowIcon(QIcon("images/error.svg"))
         dlg.setText(message)
         dlg.exec()
 
