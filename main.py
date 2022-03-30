@@ -78,14 +78,16 @@ class FilterApp(QMainWindow, design.Ui_MainWindow):
         self.out = None
 
         self.startButton.clicked.connect(self.set_output)
-        self.setStyleSheet(
-            " QMenuBar{background: #f5f5f5} ")
+        self.setStyleSheet("QMenuBar{background: #f5f5f5}")
         self.setWindowIcon(QIcon("images/icon.svg"))
 
         data = filters.h1.tolist()
         self.model = TableModel(data)
         self.table.setModel(self.model)
         self.table.setItemDelegate(AlignDelegate(self.table))
+
+        self.sizeEdit.setVisible(False)
+        self.sizeLabel.setVisible(False)
 
         self.comboBox.addItems(["H1", "H2", "H3", "Медианный", "H4", "H5", "H6", "Свой фильтр"])
         self.comboBox.currentTextChanged.connect(self.on_combobox_changed)
@@ -112,7 +114,7 @@ class FilterApp(QMainWindow, design.Ui_MainWindow):
             im = Image.fromarray(self.out)
             im.save(filename[0])
         except Exception:
-            self.show_message("Can't save this file")
+            self.show_message("Не удалось сохранить файл")
 
     def set_input(self):
         self.open_file()
@@ -121,10 +123,10 @@ class FilterApp(QMainWindow, design.Ui_MainWindow):
                 with Image.open(self.filename) as img:
                     self.data = np.asarray(img.convert('RGB')).astype("uint8")
             except FileNotFoundError:
-                self.show_message("File not found")
+                self.show_message("Файл не найден")
                 return
             except Exception:
-                self.show_message("Something went wrong")
+                self.show_message("Что-то пошло не так")
                 return
 
             self.set_image(self.data, self.inputLabel)
@@ -133,16 +135,27 @@ class FilterApp(QMainWindow, design.Ui_MainWindow):
         try:
             kernel = np.array(self.table.model().get_data()).astype("float32")
         except ValueError:
-            self.show_message("The kernel is bad")
+            self.show_message("Ошибка в ядре. Убедитесь, что таблица заполнена верно")
             return
         if self.data is None:
-            self.show_message("Please, choose an image first")
+            self.show_message("Пожалуйста, сначала выберите изображение")
             return
         image_filter = Filter(self.channels_number)
         image_filter.image = self.data
         kernel_mode = self.comboBox.currentText()
         if kernel_mode == "Медианный":
-            self.out = image_filter.filter(kernel=np.ones((3, 3)), function=np.median)
+            try:
+                size = int(self.sizeEdit.text())
+            except ValueError:
+                self.show_message("Размер введен неверно. Пример: 3")
+                return
+            if size % 2 != 1:
+                self.show_message("Фильтр должен иметь нечетные измерения")
+                return
+            if size > len(self.data) or size > len(self.data[0]):
+                self.show_message("Фильтр слишком большой. Выберите размер меньше, чем измерения картинки")
+                return
+            self.out = image_filter.filter(kernel=np.ones((size, size)), function=np.median)
         else:
             self.out = image_filter.filter(kernel=kernel)
 
@@ -152,18 +165,18 @@ class FilterApp(QMainWindow, design.Ui_MainWindow):
         try:
             image = QImage(data, data.shape[1], data.shape[0], self.channels_number * data.shape[1], self.mode)
         except Exception:
-            self.show_message("Couldn't create output")
+            self.show_message("Не удалось создать картинку")
             return
         try:
             pixmap = QPixmap(image).scaled(label.width(), label.height(), QtCore.Qt.KeepAspectRatio)
             label.setPixmap(pixmap)
         except Exception:
-            self.show_message("Couldn't set output")
+            self.show_message("Не удалось отобразить картинку")
 
-    def show_message(self, message, title="Error!"):
+    def show_message(self, message, title="Ошибка!"):
         dlg = QMessageBox(self)
         dlg.setWindowTitle(title)
-        if title == "Error!":
+        if title == "Ошибка!":
             dlg.setIconPixmap(QPixmap("images/error.svg"))
             dlg.setWindowIcon(QIcon("images/error.svg"))
         dlg.setText(message)
@@ -182,6 +195,16 @@ class FilterApp(QMainWindow, design.Ui_MainWindow):
 
     def on_combobox_changed(self, value):
         kernel = self.choose_kernel(value)
+        if value == "Медианный":
+            self.sizeEdit.setVisible(True)
+            self.sizeLabel.setVisible(True)
+            self.table.setVisible(False)
+            self.filterLabel.setVisible(False)
+        else:
+            self.sizeEdit.setVisible(False)
+            self.sizeLabel.setVisible(False)
+            self.table.setVisible(True)
+            self.filterLabel.setVisible(True)
         if kernel is not None:
             self.table.model().update(kernel.tolist())
 
