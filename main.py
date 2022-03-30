@@ -114,7 +114,6 @@ class FilterApp(QMainWindow, design.Ui_MainWindow):
         except Exception:
             self.show_message("Can't save this file")
 
-
     def set_input(self):
         self.open_file()
         if self.filename:
@@ -142,7 +141,7 @@ class FilterApp(QMainWindow, design.Ui_MainWindow):
         image_filter = Filter(self.channels_number)
         image_filter.image = self.data
         kernel_mode = self.comboBox.currentText()
-        if kernel_mode == "median":
+        if kernel_mode == "Медианный":
             self.out = image_filter.filter(kernel=np.ones((3, 3)), function=np.median)
         else:
             self.out = image_filter.filter(kernel=kernel)
