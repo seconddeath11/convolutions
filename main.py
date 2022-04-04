@@ -91,7 +91,6 @@ class FilterApp(QMainWindow, design.Ui_MainWindow):
 
         self.comboBox.addItems(["H1", "H2", "H3", "Медианный", "H4", "H5", "H6", "Свой фильтр"])
         self.comboBox.currentTextChanged.connect(self.on_combobox_changed)
-        self.comboBox.setItemDelegate(AlignDelegate(self.comboBox))
 
         self.openAction.triggered.connect(self.set_input)
         self.exitAction.triggered.connect(exit)
